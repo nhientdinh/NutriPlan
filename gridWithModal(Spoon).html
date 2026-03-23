@@ -80,8 +80,11 @@
 <input id="searchBox" placeholder="Enter food (ex: chicken)">
 <button onclick="searchRecipes()">Search</button>
 
+<button onclick="showSavedRecipes()">View Saved Recipes</button>
+
 <!-- Cards -->
 <div class="card-container" id="cardContainer"></div>
+<div class="card-container" id="savedContainer"></div>
 
 <!-- Modal -->
 <div class="modal" id="modal">
@@ -105,6 +108,8 @@
     <br><br>
     
     <button onclick="saveRecipe()">Save Recipe</button>
+	
+
 
   </div>
 </div>
@@ -120,7 +125,6 @@ const modalIngredients = document.getElementById("modalIngredients");
 const starRating = document.getElementById("starRating");
 
 let allRecipes = [];
-
 let activeCard = null;
 
 /* -------- Search Recipes -------- */
@@ -183,7 +187,7 @@ window.onclick = function (e) {
   if (e.target === modal) closeModal();
 };
 
-/* -------- Load Recipes From JSONBin -------- */
+/* -------- Load Recipes -------- */
 async function loadRecipes() {
   try {
     const res = await fetch("getJSONData.php");
@@ -194,32 +198,91 @@ async function loadRecipes() {
     allRecipes = [];
   }
 }
+/* -------- Show Saved Recipes -------- */
+async function showSavedRecipes() {
+  await loadRecipes();
+
+  const container = document.getElementById("savedContainer");
+  container.innerHTML = "";
+
+  if (!allRecipes || allRecipes.length === 0) {
+    container.innerHTML = "<p>No saved recipes.</p>";
+    return;
+  }
+
+  allRecipes.forEach((r, index) => {
+    const card = document.createElement("div");
+    card.className = "card";
+
+    card.innerHTML = `
+      ${r.recipePhoto}
+      <h3>${r.recipeID}</h3>
+      <p><strong>Rating:</strong> ${r.star} ⭐</p>
+      <button onclick="viewSavedRecipe(${index})">View</button>
+    `;
+
+    container.appendChild(card);
+  });
+}
+
+/* -------- View Saved Recipe -------- */
+function viewSavedRecipe(index) {
+  const r = allRecipes[index];
+
+  modalTitle.textContent = r.recipeID;
+
+  const srcMatch = r.recipePhoto.match(/src="(.*?)"/);
+  modalImage.src = srcMatch ? srcMatch[1] : "";
+
+  modalIngredients.innerHTML = "";
+  r.ingredients.split("\n").forEach(i => {
+    const li = document.createElement("li");
+    li.textContent = i;
+    modalIngredients.appendChild(li);
+  });
+
+  modalText.innerHTML = r.instructions;
+  starRating.value = r.star;
+
+  modal.style.display = "block";
+}
 
 /* -------- Save Recipe -------- */
 async function saveRecipe() {
+  try {
+    await loadRecipes();
+    if (!Array.isArray(allRecipes)) allRecipes = [];
 
-  await loadRecipes();
+    const recipe = {
+      recipePhoto: `<img src="${modalImage.src}">`,
+      recipeID: modalTitle.textContent,
+      ingredients: [...modalIngredients.children].map(li => li.textContent).join("\n"),
+      instructions: modalText.innerHTML,
+      star: parseInt(starRating.value)
+    };
 
-  const recipe = {
-    recipePhoto: `<img src="${modalImage.src}">`,
-    recipeID: modalTitle.textContent,
-    ingredients: [...modalIngredients.children]
-      .map(li => li.textContent)
-      .join("\n"),
-    instructions: modalText.innerHTML,
-    star: parseInt(starRating.value)
-  };
+    allRecipes.push(recipe);
 
-  allRecipes.push(recipe);
+    // Wrap array in an object for JSONBin
+    const payload = { recipes: allRecipes };
 
-  await fetch("putJSONData.php", {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(allRecipes)
-  });
+    const res = await fetch("putJSONData.php", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
 
-  alert("Recipe Saved!");
-  closeModal();
+    const result = await res.json();
+    console.log(result); // Debug response from JSONBin
+
+    if (!res.ok) throw new Error(result.message || "Failed to save recipes");
+
+    alert("Recipe Saved!");
+    closeModal();
+  } catch (err) {
+    console.error(err);
+    alert("Error saving recipe: " + err.message);
+  }
 }
 </script>
 
