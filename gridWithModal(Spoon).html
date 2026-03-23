@@ -185,8 +185,14 @@ window.onclick = function (e) {
 
 /* -------- Load Recipes From JSONBin -------- */
 async function loadRecipes() {
-  const res = await fetch("getJSONData.php");
-  allRecipes = await res.json();
+  try {
+    const res = await fetch("getJSONData.php");
+    const data = await res.json();
+    allRecipes = data.record?.recipes || []; 
+  } catch (err) {
+    console.warn("Could not fetch recipes from JSONBin.", err);
+    allRecipes = [];
+  }
 }
 
 /* -------- Save Recipe -------- */
